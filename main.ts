@@ -7,7 +7,7 @@ import chalk from 'chalk';
 import { compile, log, runCode } from './compiler.js';
 
 export function getVersion() {
-    return "1.0.22";
+    return "1.1.1";
 }
 
 function howToUse() {
@@ -116,7 +116,6 @@ function processFile(filename: string) {
     
     if (!sanitizedPath.endsWith('.jaan')) {
         const endsWith = sanitizedPath.split('.').pop();
-        //log(endsWith, endsWith === sanitizedPath);
         if (endsWith === sanitizedPath) {
             sanitizedPath = sanitizedPath + ".jaan";
         }else {

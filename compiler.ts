@@ -1,8 +1,8 @@
 import chalk from 'chalk';
 
-export const log = console.log;
+import { _variableSet, evaluateExpression, operandType, resetVariableSet, validValue, validateOperand, validateVariableName } from './utils.js';
 
-let _variableSet: Map<string, string | number | undefined> = new Map();
+export const log = console.log;
 
 let sleepUsed: boolean = false;
 
@@ -12,36 +12,6 @@ async function _jaanLangSleep(ms) {
 }`;
 
 let lines: string[] = [];
-
-const keywordsControl = {
-    "jodi": true,
-    "nahole": true,
-    "nahole jodi": true,
-    "huh": true,
-}
-
-const keywordBoolean = {
-    "hoy": true,
-    "na": true,
-    "and": true,
-    "or": true,
-    "er": true,
-    "theke": true,
-    "kom": true,
-    "beshi": true,
-    "soman": true,
-}
-
-
-const keywordsLoop = {
-    "bar": true
-}
-
-const keywords: { [key: string]: boolean } = {
-    ...keywordsControl,
-    ...keywordsLoop,
-    ...keywordBoolean
-};
 
 const testCode = `hi jaan
 
@@ -65,62 +35,55 @@ huh
 
 bye jaan`;
 
-//runCode(testCode);
-
-//let startBlockStack: string[{blockname: "jodi"|"bar", line: number}] = [{}]; #fix this
-//block name can be "jodi" || "N bar"; here N must be a number. so use regex for the type
 type BlockType = "jodi" | "nahole jodi" | "nahole" | `${number} bar`;
 let startBlockStack: Array<{ blockname: BlockType, line: number }> = [];
 let endBlockStack: Array<{ blockname: BlockType, line: number }> = [];
 
+function startup(code: string, terminal: boolean) {
+    _variableSet.clear();
+    resetVariableSet();
+    startBlockStack = new Array<{ blockname: BlockType, line: number }>();
+    endBlockStack = new Array<{ blockname: BlockType, line: number }>();
+    sleepUsed = false;
+
+    if (terminal) {
+        log(chalk.yellowBright('Compiling...'));
+    }
+
+    //remove starting and trailing spaces
+    lines = code.trim().split("\n");
+
+    if (lines[0].trim() != "hi jaan") {
+        throw new Error(`Error at line 1:  Missing Program entrypoint 'hi jaan' on the first line 😩`);
+    }
+
+    if (lines[lines.length - 1].trim() != "bye jaan") {
+        throw new Error(`Error at line ${lines.length + 1}: Missing Program exitpoint 'bye jaan' on the last line 😩`);
+    }
+
+    //if any line after 'bye jaan' then throw error
+    if (code.trimStart().endsWith("bye jaan") == false) {
+        throw new Error(`Error at line ${lines.length + 1}: 'bye jaan' er pore r kicchu lekha jabe na. Extra lines remove koro 😩`);
+    }
+
+    //remove first and last line
+    lines.shift();
+    lines.pop();
+}
+
 export function compile(code: string, terminal = true) {
 
-    
-    
     try{
 
         //clear all previous compilation metadata
         let output = "";
-        _variableSet.clear();
-        _variableSet = new Map();
-        startBlockStack = new Array<{ blockname: BlockType, line: number }>();
-        endBlockStack = new Array<{ blockname: BlockType, line: number }>();
-        sleepUsed = false;
+
+        startup(code, terminal);
 
         let i = 0;
     
-        terminal ? log(chalk.yellowBright('Compiling...')) : null;
-        //remove starting and trailing spaces
-        lines = code.trim().split("\n");
-    
-        //log(lines);
-    
-        if (lines[0].trim() !== "hi jaan") {
-            throw new Error(`Error at line 1:  Missing Program entrypoint 'hi jaan' on the first line 😩`);
-        }
-    
-        if (lines[lines.length - 1].trim() !== "bye jaan") {
-            throw new Error(`Error at line ${lines.length + 1}: Missing Program exitpoint 'bye jaan' on the last line 😩`);
-        }
-    
-        //if any line after 'bye jaan' then throw error
-        if (code.trimStart().endsWith("bye jaan") === false) {
-            throw new Error(`Error at line ${lines.length + 1}: 'bye jaan' er pore r kicchu lekha jabe na. Extra lines remove koro 😩`);
-        }
-    
-        //remove first and last line
-        lines.shift();
-        lines.pop();
-    
-    
-        //console.log(lines.length + " lines");
-    
         for (i = 0; i < lines.length; i++) {
             try {
-    
-                //remove starting and trailing spaces
-                //lines[i] = lines[i].trim();
-                //log("Line: " + i + ": " + lines[i]);
     
                 //if comment then return
                 if (lines[i].trim()[0] === "#") {
@@ -132,7 +95,7 @@ export function compile(code: string, terminal = true) {
                     continue;
                 }
     
-                if (lines[i].trim() === "nahole") { //Nahole block
+                if (lines[i].trim() === "nahole") {
     
                     //use stack to check if nahole is used with jodi
                     if (startBlockStack.length === 0) {
@@ -142,7 +105,6 @@ export function compile(code: string, terminal = true) {
                         output += "} else {";
                         startBlockStack.pop();
                         startBlockStack.push({ blockname: "nahole", line: i });
-                        //console.log('Else block popped stack');
                         endBlockStack.pop();
                         endBlockStack.push({ blockname: "nahole", line: i });
                         continue;
@@ -150,11 +112,6 @@ export function compile(code: string, terminal = true) {
                         throw new Error(`'nahole' er age kothao 'jodi' ba nahole [..] jodi' use korso?😒|nahole`);
                     }
                 } else if (lines[i].trim().startsWith("nahole")) { //Nahole jodi block with condition
-                    /*
-                    lines[i] = lines[i].replace("nahole", "").trim();
-                    output += "} else if (" + parseConditional(lines[i]) + ") {";
-                    continue;
-                    */
                     //use stack to check if nahole is used with jodi. Nahole is "else if" in bangla
                     if (startBlockStack.length === 0) {
                         throw new Error(`'nahole jodi' er age kothao 'jodi' ba nahole [..] jodi' use korso?😒|nahole jodi`);
@@ -163,7 +120,6 @@ export function compile(code: string, terminal = true) {
                         output += "} else if (" + parseConditional(lines[i].replace("nahole", "").trim()) + ") {";
                         startBlockStack.pop();
                         startBlockStack.push({ blockname: "nahole jodi", line: i });
-                        //console.log('Else if block popped stack');
                         endBlockStack.pop();
                         endBlockStack.push({ blockname: "nahole jodi", line: i });
                         continue;
@@ -171,26 +127,17 @@ export function compile(code: string, terminal = true) {
                         throw new Error(`'nahole jodi' er age kothao 'jodi' ba nahole [..] jodi' use korso?😒|nahole jodi`);
                     }
     
-                } else if (lines[i].trim().match(/(.*)\s+(jodi)\s+(.*)/)) { //Jodi block
-                    //log("Conditional statement found: " + lines[i]);
+                } else if (lines[i].trim().match(/(.*)\s+(jodi)\s+(.*)/)) {
                     output += "\nif (" + parseConditional(lines[i]) + ") {";
-                    //blockStart = true;
                     startBlockStack.push({ blockname: "jodi", line: i });
                     endBlockStack.push({ blockname: "jodi", line: i });
-                    //console.log('If block pushed');
                     continue;
                 } else if (lines[i].trim().startsWith("huh")) {
                     //end of block
-                    //output += "\n}";
                     if (startBlockStack.length === 0) {
                         throw new Error(`Khoda amr😑!! Kono block start korso j 'huh' likhso?😒|huh`);
                     }
-    
-                    //console.log(`start stacks: `, startBlockStack);
-                    //console.log(`end stacks: `, endBlockStack);
-                    //console.log(`Last block start: ${startBlockStack.at(-1)?.blockname}`);
-                    //console.log(`Last block end: ${endBlockStack.at(-1)?.blockname}`);
-    
+
                     if (startBlockStack.at(-1)?.blockname === endBlockStack.at(-1)?.blockname) {
                         startBlockStack.pop();
                         endBlockStack.pop();
@@ -199,341 +146,220 @@ export function compile(code: string, terminal = true) {
                     output += "\n}";
     
                 } else if (lines[i].trim().startsWith("bolo")) {
-                    //find parameter of bolo
-                    const expression = lines[i].replace("bolo", "").trim();
-                    //extract all parameters by searching for variables and strings
-                    const regex = /(["'](.*)["'])|([a-zA-Z0-9]+)/g;
-                    const matches = expression.match(regex);
-    
-                    if (!matches) {
-                        const garbage = expression.replace(/["'].*["']/g, "").replace(/[a-zA-Z0-9]+/g, "").trim();
-                        if (garbage) {
-                            throw new Error(`Invalid token😑 '${garbage}'|${garbage}`);
-                        }
-                        throw new Error(`Bolo ki?😑 kichu to bolo.|bolo`);
-                    }
-                    //validate expression
-                    //expression can be a string or a variable or a combination of both
-                    if (!isValidExpression(expression)) {
-                        throw new Error(`Invalid expression😑 '${expression}'|${expression}`);
-                    }
-    
-                    //validate each parameter
-                    for (const match of matches) {
-                        validateOperand(match);
-                    }
+
+                    handleBolo(i, lines);
                     //use regex
                     output += lines[i].replace(/(^\s)*bolo\s+(.*)$/gm, '\nconsole.log($2);');
                 } else if (lines[i].trim().startsWith("dhoro")) {
-                    //implement code
-                    //remove dhoro and split by "holo"
-                    const variableDeclaration = lines[i].replace("dhoro", "");
-                    //if variableDeclaration contains holo then split by holo
-                    const variableDeclarationParts = variableDeclaration.split("holo").map((part) => part.trim());
-    
-                    //console.log(variableDeclarationParts);
-    
-                    if (variableDeclarationParts.length > 1) {
-                        if (!variableDeclarationParts[1]) {
-                            throw new Error(`Expected value after 'holo'. '${variableDeclarationParts[0]} er value koi?😤'|holo`);
-                        } else {
-                            //check if it is a variable or value
-                            validateOperand(variableDeclarationParts[1]);
-                        }
-                    }
-    
-                    if (variableDeclarationParts.length > 2) {
-                        throw new Error(`Ajaira token😑 after ${variableDeclarationParts[1]}. Found '${variableDeclarationParts[2]}'|${variableDeclarationParts[2]}`);
-                    }
-    
-                    validateVariableName(variableDeclarationParts[0]);
 
-                    //if variable is already declared then throw error
-                    if (_variableSet.has(variableDeclarationParts[0])) {
-                        throw new Error(`'${variableDeclarationParts[0]} to ekbar declare korso. Onno nam dao😑'|${variableDeclarationParts[0]}`);
+                    const {value, name} = handleDhoro(i, lines);
+    
+                    output += `\nlet ${name} = ${value};`;
+                    _variableSet.set(name[0], value);
+    
+                } else if (/(.*) holo (.*)/.test(lines[i])) {
+                    const match = lines[i].match(/(.*) holo (.*)/);
+                    if (match) {
+                        output = handleHolo(match, output);
                     }
-    
-                    let value: string | number | undefined = variableDeclarationParts[1];
-    
-                    if (value) {
-                        const type = operandType(value);
-    
-                        switch (type) {
-                            case "string":
-                                value = String(value);
-                                break;
-                            case "number":
-                                value = Number(value);
-                                break;
-                            case "variable":
-                                value = _variableSet.get(value);
-                                break;
-                        }
-                    }
-    
-                    output += `\nlet ${variableDeclarationParts[0]} = ${value};`;
-                    _variableSet.set(variableDeclarationParts[0], value);
-    
                 } else if (/(.*)\s*bar\s*(\S*)\s*(.*)/.test(lines[i])) {
                     output += rangeLoopParser(lines[i], i);
                 } else if (/(\S*)\s*(\S*)\s*wait koro\s*(.*)/.test(lines[i])){
                     const match = lines[i].match(/(\S*)\s*(\S*)\s*wait koro\s*(.*)/);
-                    if (match){
-
-                        //log(match);
-
-                        if (!match[2]){
-                            throw new Error(`Time unit koi?😑|wait`);
-                        }
-
-                        if (!["min", "sec"].includes(match[2].trim())){
-                            throw new Error(`Invalid time unit😑 '${match[2]}'. Use 'sec' or 'min' as Unit|${match[2]}`);
-                        }
-
-                        if (match[3]) {
-                            throw new Error(`Hae??😑 Invalid token '${match[2]}'|${match[2]}`);
-                        }
-                        
-                        const time = validateNumber(match[1].trim(), 'time count');
-
-                        sleepUsed = true;
-
-                        const ms = match[2].trim() === "sec" ? time * 1000 : time * 1000 * 60;
-
-                        output += `\nawait _jaanLangSleep(${ms});\n`;
+                    if (match) {
+                        output = handleWait(match, output);
                     }
                 } else {
                     const token = lines[i].trim().split(/\s+/)[0];
-                    //log(token + " found");
                     throw new Error(`Ajaira token😑 '${token}'|${token}`);
                 }
             } catch (e: any) {
-    
-                let annotatedLine = `${lines[i].trim()}\n`;
-                //console.log(i);
-                //add spaces before ^ to align with the error message
-                const error = e.message;
-                if (!error) {
-                    throw new Error("Allah!! ki jani hoise.😨 Ami kichu jani na🥺");
-                }
-                const msg = error.split("|")[0];
-                let token: string = error.split("|")[1];
-                if (token) {
-                    if (token.startsWith("#")){
-                        if (token.includes("end")){
-                            //show the annotation at the end of the line
-                            annotatedLine += " ".repeat(lines[i].trim().length);
-                            annotatedLine += terminal ? chalk.yellowBright("^") : "^";
-                        }
-                    } else if (lines[i].trim().includes(token)) {
-                        annotatedLine += " ".repeat(lines[i].trim().indexOf(token));
-                        for (let j = 0; j < token.length; j++) {
-                            annotatedLine += terminal ? chalk.yellowBright("~") : "~";
-                        }
-                    }
-                }
-                //console.log(startBlockStack);
-                //console.log(endBlockStack);
+                
+                const { msg, annotatedLine } = displayError(e, terminal, lines, i);
                 throw new Error(`Error at line ${i + 2}: ${msg}\n\n${annotatedLine}\nCompilation failed🥺😭\n`);
             }
         }
     
-        //console.log(startBlockStack);
-        //console.log(endBlockStack);
         //if block is not closed and line is empty then throw error
         if (startBlockStack.length || endBlockStack.length) {
-            //console.log(startBlockStack);
-            //console.log(endBlockStack);
             if (startBlockStack.length > 0){
                 throw new Error(`Error at line ${startBlockStack[0].line + 2}:  Block end korte 'huh' likho nai😑.\nCompilation failed🥺😭\n`);
             } else {
                 throw new Error(`Error:  Kono ekta block end koro nai😑.\nCompilation failed🥺😭\n`);
             }
         }
-
         //wrap the code in a async function
         output = `(async () => {${output}\n\n/*[END_CODE]*/})();`;
         if (sleepUsed){
             output = sleepCode + output;
         }
     
-        terminal ? log(chalk.greenBright('Compiled successfully')) : null;
+        if (terminal) {
+            log(chalk.greenBright('Compiled successfully'));
+        }
         return output;
     } catch (e: any) {
         throw new Error(e.message);
     }
 }
 
+function handleWait(match: RegExpMatchArray, output: string){
+    if (match){
+        if (!match[2]){
+            throw new Error(`Time unit koi?😑|wait`);
+        }
+        if (!["min", "sec"].includes(match[2].trim())){
+            throw new Error(`Invalid time unit😑 '${match[2]}'. Use 'sec' or 'min' as Unit|${match[2]}`);
+        }
+        if (match[3]) {
+            throw new Error(`Hae??😑 Invalid token '${match[2]}'|${match[2]}`);
+        }
+        const time = validateNumber(match[1].trim(), 'time count');
+        sleepUsed = true;
+        const ms = match[2].trim() === "sec" ? time * 1000 : time * 1000 * 60;
+        output += `\nawait _jaanLangSleep(${ms});\n`;
+    }
 
-function isValidExpression(expression: string) {
+    return output;
+}
 
-    try {
-        //split all tokens by operators and keep the operators in the array
-        const tokens = expression.split(/([+\-*/]+)/).filter((token) => token !== undefined && token !== "" && token !== " ").map((token) => token.trim());
+function handleHolo(match: RegExpMatchArray, output: string){
+    if (match) {
 
-        const operators: string[] = [];
+        const variable = match[1].trim();
+        const expression = match[2].trim();
 
-        //validate each token
-        for (const token of tokens) {
-            //an operator can only be in the middle of 2 operands or minus sign can be before an operand but multiple minus sign cannot be before an operand. two minus sign can be before operand like a - -b. means a  - (-b) = a + b
-            if (/[+\-*/]+/.test(token)) {
-                operators.push(token);
-            } else {
-                validateOperand(token);
+        if (!_variableSet.has(variable)) {
+            throw new Error(`'${variable}' declare korso?😑|${variable}`);
+        }
+
+        //validate expression
+        //expression can be a string or a variable or a combination of both
+        const value = evaluateExpression(expression);
+
+        if (!validValue(value)) {
+            throw new Error(`Huh. Dumb kothakar🙂 '${expression}' er kono solution ase?|${expression}`);
+        }
+
+        if (value === undefined || value === null) {
+            throw new Error(`Hijibiji hijibiji 😵‍💫  '${expression}'|${expression}`);
+        }
+        //use regex
+        output += `\n${variable} = ${expression};`;
+        _variableSet.set(variable, value);
+    }
+
+    return output;
+}
+
+function displayError(e: any, terminal: boolean, lines: string[], i: number) {
+    let annotatedLine = `${lines[i].trim()}\n`;
+    //add spaces before ^ to align with the error message
+    const error = e.message;
+    if (!error) {
+        throw new Error("Allah!! ki jani hoise.😨 Ami kichu jani na🥺");
+    }
+    const msg = error.split("|")[0];
+    let token: string = error.split("|")[1];
+    if (token) {
+        if (token.startsWith("#")){
+            if (token.includes("end")){
+                //show the annotation at the end of the line
+                annotatedLine += " ".repeat(lines[i].trim().length);
+                annotatedLine += terminal ? chalk.yellowBright("^") : "^";
+            }
+        } else if (lines[i].trim().includes(token)) {
+            annotatedLine += " ".repeat(lines[i].trim().indexOf(token));
+            for (let j = 0; j < token.length; j++) {
+                annotatedLine += terminal ? chalk.yellowBright("~") : "~";
             }
         }
+    }
 
-        if (tokens[tokens.length - 1].match(/[+\-*/]+/)) {
-            return false;
+    return {
+        msg,
+        annotatedLine
+    };
+}
+
+function handleBolo(i: number, lines: string[]) {
+    //find parameter of bolo
+    const expression = lines[i].replace("bolo", "").trim();
+    //extract all parameters by searching for variables and strings
+    const regex = /(["'](.*)["'])|([a-zA-Z0-9]+)/g;
+    const matches = expression.match(regex);
+
+    if (!matches) {
+        const garbage = expression.replace(/["'].*["']/g, "").replace(/[a-zA-Z0-9]+/g, "").trim();
+        if (garbage) {
+            throw new Error(`Invalid token😑 '${garbage}'|${garbage}`);
         }
+        throw new Error(`Bolo ki?😑 kichu to bolo.|bolo`);
+    }
+    //validate expression
+    //expression can be a string or a variable or a combination of both
 
-        //same operator cannot be positioned next to each other like a + + b is invalid, a + - b is valid, a - - b is valid, a - + b is valid
-        for (let i = 0; i < operators.length; i++) {
-            if (operators[i].length > 1) {
-                for (let j = 0; j < operators[i].length; j++) {
-                    if (operators[i][j] === operators[i][j + 1]) {
-                        return false;
-                    }
-                }
-            }
-        }
+    
+    const value = evaluateExpression(expression);
 
-        //eval(`2 + 4 * == 5`); //Unexpected token '=='
-        //eval(`2 + 4 * = 5`); //Unexpected token '='
-        //eval(`2 + 4 = 5`); //Invalid left-hand side in assignment
-        //eval(`2 + 4 == 5`); //true
-        //eval(`2 + 4 5`); //Unexpected number
-        //eval(`2 + 4 * 5 ==`); //Unexpected end of input
-
-        //Also need to implement this type of validation
-
-
-        return tokens;
-
-    } catch (e: any) {
-        throw new Error(e.message);
+    if (!validValue(value)) {
+        throw new Error(`Huh. Dumb kothakar🙂 '${expression}' er kono solution ase?|${expression}`);
+    }
+    
+    if (value == undefined) {
+        throw new Error(`Hijibiji hijibiji 😵‍💫  '${expression}'|${expression}`);
     }
 }
 
-/*
-_variableSet.add("$");
-_variableSet.add("a");
-_variableSet.add("b");
-_variableSet.add("c");
-_variableSet.add("d");
-_variableSet.add("q");
-_variableSet.add("sd");
+function handleDhoro(i: number, lines: string[]) {
+    //remove dhoro and split by "holo"
+    const variableDeclaration = lines[i].replace("dhoro", "");
+    //if variableDeclaration contains holo then split by holo
+    const variableDeclarationParts = variableDeclaration.split("holo").map((part) => part.trim());
 
-console.log(isValidExpression("a")); //true 
-console.log(isValidExpression("$")); //true reserved variable
-console.log(isValidExpression("a + b")); //true
-console.log(isValidExpression("a + b + c")); //true
-console.log(isValidExpression("a + b + 10 - d")); //true 
-console.log(isValidExpression("a + b + 10 - -d + 5")); //true 10 - (-d) + 5
-console.log(isValidExpression("a + b +")); //false expression cannot end with operator
-console.log(isValidExpression("a + b + 10 -")); //false expression cannot end with operator
-console.log(isValidExpression("-a")); //true -a is a valid expression
-console.log(isValidExpression("+a")); //true
-console.log(isValidExpression("a +- b")); //true a + (-b)
-console.log(isValidExpression("a + +b")); //true
-console.log(isValidExpression("a + +")); //false expression cannot end with operator
-console.log(isValidExpression("a -")); //false expression cannot end with operator
-console.log(isValidExpression(`"Hello"`)); //true 
-console.log(isValidExpression(`'Hello'`)); //true
-//console.log(isValidExpression(`"Hello`)); //false Unmatched quotes
-//console.log(isValidExpression(`'Hello`)); //false Unmatched quotes
-//console.log(isValidExpression(`Hello"`)); //false Unmatched quotes
-//console.log(isValidExpression(`Hello'`)); //false  Unmatched quotes
-console.log(isValidExpression(`"Hello" + "World"`)); //true
-//console.log(isValidExpression(`"Hello" + "World`)); //false Unmatched quotes
-//console.log(isValidExpression(`"Hello" + "`)); //false
-console.log(isValidExpression(`"Hello" + q`)); //true
-console.log(isValidExpression(`"Hello" + q + "World  " +`)); //false expression cannot end with operator
-console.log(isValidExpression(`2 + 4 * sd`)); //false Unexpected token '='
-//eval(`2 + 4 * == 5`); //Unexpected token '=='
-//eval(`2 + 4 * = 5`); //Unexpected token '='
-//eval(`2 + 4 = 5`); //Invalid left-hand side in assignment
-//eval(`2 + 4 == 5`); //true
-//eval(`2 + 4 5`); //Unexpected number
-//eval(`2 + 4 * 5 ==`); //Unexpected end of input
-*/
-
-
-function validateOperand(value: string) {
-    value = value.trim();
-    try {
-        return !!operandType(value);
-    } catch (e: any) {
-        throw new Error(e.message);
-    }
-}
-
-function operandType(value: string) {
-    try {
-        //returns "string", "number", "variable"
-        value = value.trim();
-        if (/["']/.test(value)) {
-            if (isValidString(value) === false) {
-                //remove starting or trailing " or '
-                const token = value.replace(/^["']|["']$/g, "");
-                throw new Error(`Dhur jaan!😑 Strings similar quotation e rakha lage jano na?. "${token}" or '${token}' eivabe.|${value}`);
-            }
-            return "string";
-        } else if (/^(-)?[0-9]+(\.[0-9]+)?$/.test(value)) { // Updated regex to include floats
-            return "number";
+    if (variableDeclarationParts.length > 1) {
+        if (!variableDeclarationParts[1]) {
+            throw new Error(`Expected value after 'holo'. '${variableDeclarationParts[0]} er value koi?😤'|holo`);
         } else {
-            validateVariableName(value);
-            if (!_variableSet.has(value)) {
-                throw new Error(`Uff jaan!😑 Variable '${value}' koi paila tmi? Declare korso hae?.|${value}`);
-            }
-            return "variable";
+            //check if it is a variable or value
+            validateOperand(variableDeclarationParts[1]);
         }
-    } catch (e: any) {
-        throw new Error(e.message);
+    }
+
+    if (variableDeclarationParts.length > 2) {
+        throw new Error(`Ajaira token😑 after ${variableDeclarationParts[1]}. Found '${variableDeclarationParts[2]}'|${variableDeclarationParts[2]}`);
+    }
+
+    validateVariableName(variableDeclarationParts[0]);
+
+    //if variable is already declared then throw error
+    if (_variableSet.has(variableDeclarationParts[0])) {
+        throw new Error(`'${variableDeclarationParts[0]} to ekbar declare korso. Onno nam dao😑'|${variableDeclarationParts[0]}`);
+    }
+
+    let value: string | number | undefined = variableDeclarationParts[1];
+
+    if (value) {
+        const type = operandType(value);
+
+        switch (type) {
+            case "string":
+                value = String(value);
+                break;
+            case "number":
+                value = Number(value);
+                break;
+            case "variable":
+                value = _variableSet.get(value);
+                break;
+        }
+    }
+
+    return {
+        name: variableDeclarationParts[0],
+        value: value
     }
 }
-
-function validateVariableName(variableName: string) {
-    try {
-        //A variable name must start with a letter, underscore sign. Subsequent characters can also be digits (0-9).
-        if (!/^[a-zA-Z_][a-zA-Z_0-9]*$/.test(variableName)) {
-            throw new Error(`Arey jaan😑! Variable name letter, underscore diye likha jay. '${variableName}' abar ki?|${variableName}`);
-        }
-
-        //check if variable name is a reserved keyword
-        if (keywords[variableName]) {
-            throw new Error(`Arey jaan😑! '${variableName}' to reserved keyword. Eita variable er nam dite parba nah.|${variableName}`);
-        }
-    } catch (e: any) {
-        throw new Error(e.message);
-    }
-}
-
-function isValidString(input: string) {
-    try {
-        const regex = /^('([^']*)'|"([^"]*)")$/;
-        const matches = regex.test(input.trim());
-        return matches;
-    } catch (e: any) {
-        throw new Error(e.message);
-    }
-}
-
-/*
-console.log(isValidString(`"Hello"`)); //true
-console.log(isValidString(`'Hello'`)); //true
-console.log(isValidString(`"Hello`)); //false
-console.log(isValidString(`'Hello`)); //false
-console.log(isValidString(`Hello"`)); //false
-console.log(isValidString(`Hello'`)); //false
-console.log(isValidString(`"Hello" + "World"`)); //false
-console.log(isValidString(`"Hello" + "World`)); //false
-console.log(isValidString(`"Hello" + "`)); //false
-console.log(isValidString(`"Hello" + q`)); //false
-console.log(isValidString(`"Hello world"`)); //false
-console.log(isValidString(`"Hello world`)); //false
-console.log(isValidString(`'Hello world'`)); //true
-*/
 
 function parseConditional(text: string) {
 
@@ -548,7 +374,8 @@ function parseConditional(text: string) {
         let expression = "";
         let lastCondition = "";
 
-        const regex = /([a-z-A-Z0-9'"_]+)?\s*(\bjodi\b)?\s*([a-z-A-Z0-9'"_]+)?\s*(\ber kom ba soman hoy\b|\ber kom ba soman na hoy\b|\ber beshi ba soman hoy\b|\ber beshi ba soman na hoy\b|\ber beshi hoy\b|\ber beshi na hoy\b|\ber kom hoy\b|\ber kom na hoy\b|\ber soman hoy\b|\ber soman na hoy\b|\bhoy\b|\bna hoy\b)?\s*((.*)+)?/;
+        const regex = /([a-zA-Z0-9'"_]+)\s*(\bjodi\b)?\s*([a-zA-Z0-9'"_]+)?\s*(\ber kom ba soman hoy|\ber kom ba soman na hoy|\ber beshi ba soman hoy|\ber beshi ba soman na hoy|\ber beshi hoy|\ber beshi na hoy|\ber kom hoy|\ber kom na hoy|\ber soman hoy|\ber soman na hoy|\bhoy|\bna hoy)\s*([a-zA-Z0-9'"_]+)?/;
+
 
         //check if it is a conditional statement
         for (let i = 0; i < parts.length; i++) {
@@ -576,7 +403,6 @@ function parseConditional(text: string) {
             const jodi = match[2];
             const var2 = match[3];
 
-            //console.log(`var1: ${var1}, jodi: ${jodi}, var2: ${var2}`);
 
             if (!var1) {
                 throw new Error("Gadha reh😞 Expected a valid 1st variable or value");
@@ -607,14 +433,6 @@ function parseConditional(text: string) {
         throw new Error(e.message);
     }
 }
-
-//valid expressions
-//variable jodi variable (...)
-//variable jodi value["string"|number] (...)
-//value["string"|number] jodi value["string"|number] (...)
-
-//invalid expressions
-//value jodi variable (...) //should be variable jodi value //variable should be on left side
 
 function validateConditionExpression(var1: string, var2: string, operator: string) {
 
@@ -694,7 +512,6 @@ function rangeLoopParser(text: string, line: number) {
             
             if (hasLoopingVariable) {
 
-                //log(hasLoopingVariable);
 
                 validateVariableName(hasLoopingVariable);
                 
@@ -702,13 +519,9 @@ function rangeLoopParser(text: string, line: number) {
                     throw new Error(`'${hasLoopingVariable}' already declare kora ase. Onno nam dao 😑|${hasLoopingVariable}`);
                 }
 
-                //log(matches[3]);
-
                 if (matches[3].trim() === ""){
-                    //log(1);
                     throw new Error(`Expected 'dhore' after ${hasLoopingVariable}|#end`);
                 } else if (matches[3].trim() !== "dhore"){
-                    //log(2);
                     throw new Error(`Expected 'dhore' after ${hasLoopingVariable}. Found '${matches[3]}'|${matches[3]}`);
                 }
                 
@@ -758,7 +571,7 @@ function validateNumber(number: string, usedFor: 'loop' | 'time count'){
         if (!value) {
             throw new Error(`${number} er value koi? ki likhso egula hae?? 😑|${number}`);
         } else {
-            //console.log(typeof value, value);
+
             if (typeof value === "number") {
                 if (Number(value) < 0) {
                     throw new Error(`'${number}' er value '${value}'. ${sentenceCase(usedFor)}ing variable always positive${ integer? " integer" : ""} number hoy jaan|${number}`);
@@ -809,31 +622,6 @@ hi jaan
 bye jaan
 `;
 
-/*
-const str1 = 'a jodi 10 er theke beshi hoy';
-const str2 = 'a jodi 10 er theke kom hoy tahole';
-const str3 = 'a jodi 10 er soman hoy tahole';
-const str4 = 'a jodi 10 er theke beshi ba soman hoy tahole';
-
-const str5 = 'a jodi 10 er theke beshi na hoy tahole';
-const str6 = 'a jodi 10 er theke kom na hoy tahole';
-const str7 = 'a jodi 10 er soman na hoy tahole';
-*/
-
-//variable: "Hello", a, 10, 10.5
-//jodi: jodi
-//er: er
-//operator: soman, theke beshi, theke kom, theke beshi ba soman, theke kom ba soman
-//modifier: hoy, na hoy
-//tahole: tahole
-
-// for a 10 er soman hoy tahole
-// variable: a
-// jodi: undefined
-
-//make regex that can match all the patterns. each group will be optional. if a group is not matched then it will be undefined
-//pattern (variable) (jodi) (variable) (er) (operator) (modifier) (tahole)
-//const regex = /([a-z-A-Z0-9'"_]+)?\s*(\bjodi\b)?\s*([a-z-A-Z0-9'"_]+)?\s*(\ber\b)?\s*(\btheke\s+kom\s+ba\s+soman\b|\btheke\s+beshi\s+ba\s+soman\b|\btheke\s+beshi\b|\btheke\s+kom\b|\bsoman\b|)?\s*(\bna\s+hoy|hoy\b)?\s*(\btahole\b)?/;
 
 export function runCode(code: string) {
     try {
@@ -842,7 +630,7 @@ export function runCode(code: string) {
             log(chalk.yellowBright('Running...'));
             eval(parsedCode);
         } catch (e: any) {
-            log(chalk.yellowBright(`Ki korso eita?? Internal error: ${e.message}`));
+            log(chalk.yellowBright(`Eita kono kotha🙂! Internal error: ${e.message}`));
         }
     } catch (e: any) {
         log(chalk.redBright(e.message));
