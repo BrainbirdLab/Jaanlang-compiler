@@ -164,7 +164,7 @@ export function operandType(value: string) {
         if (/["']/.test(value)) {
             if (isValidString(value) === false) {
                 //remove starting or trailing " or '
-                const token = value.replace(/^["']|["']$/g, "");
+                const token = value.replace(/^(["'])|(["'])$/g, "");
                 throw new Error(`Dhur jaan!😑 Strings similar quotation e rakha lage jano na?. "${token}" or '${token}' eivabe.|${value}`);
             }
             return "string";
